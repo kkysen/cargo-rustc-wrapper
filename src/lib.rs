@@ -6,6 +6,7 @@ use std::process::Command;
 pub struct CargoWrapper {
     rustc_wrapper: PathBuf,
     sysroot: PathBuf,
+    toolchain: Option<PathBuf>,
 }
 
 impl CargoWrapper {
@@ -13,8 +14,15 @@ impl CargoWrapper {
         todo!()
     }
 
-    pub fn set_rust_toolchain(rust_toolchain_toml_str: &str) {
-        todo!()
+    /// Set `$RUSTUP_TOOLCHAIN` to the toolchain channel specified in `rust-toolchain.toml`.
+    /// This ensures that we use a toolchain compatible with the `rustc` private crates that we linked to.
+    pub fn set_rustup_toolchain(&mut self, rust_toolchain_toml_str: &str) -> anyhow::Result<()> {
+        let doc = rust_toolchain_toml_str.parse::<toml_edit::Document>()?;
+        let channel = doc["toolchain"]["channel"].as_str();
+        if let Some(toolchain) = channel {
+            self.toolchain = Some(PathBuf::from(toolchain));
+        }
+        Ok(())
     }
 
     pub fn run_cargo(
