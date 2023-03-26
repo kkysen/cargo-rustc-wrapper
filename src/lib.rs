@@ -71,8 +71,12 @@ pub struct CargoWrapper {
 }
 
 impl CargoWrapper {
-    fn new(rustc_wrapper: PathBuf) -> anyhow::Result<Self> {
-        todo!()
+    fn new(rustc_wrapper: RustcWrapperEnvVar) -> anyhow::Result<Self> {
+        Ok(Self {
+            rustc_wrapper,
+            sysroot: todo!(),
+            toolchain: None,
+        })
     }
 
     /// Set `$RUSTUP_TOOLCHAIN` to the toolchain channel specified in `rust-toolchain.toml`.
@@ -161,16 +165,18 @@ pub trait CargoRustcWrapper {
     fn wrap_rustc(&self, wrapper: RustcWrapper) -> anyhow::Result<()>;
 }
 
-const RUSTC_WRAPPER_VAR: &str = "RUSTC_WRAPPER";
-
 /// Run the current binary as either a `cargo` or `rustc` wrapper.
 pub fn wrap_cargo_or_rustc(wrapper: impl CargoRustcWrapper) -> anyhow::Result<()> {
-    let own_exe = env::current_exe()?;
+    let own_rustc_wrapper = RustcWrapperEnvVar {
+        key: "RUSTC_WRAPPER",
+        value: env::current_exe()?,
+    };
+    let current_rustc_wrapper = EnvVar::get_path(own_rustc_wrapper.key);
 
-    let wrapping_rustc = env::var_os(RUSTC_WRAPPER_VAR).as_deref() == Some(own_exe.as_os_str());
+    let wrapping_rustc = current_rustc_wrapper.as_ref() == Some(&own_rustc_wrapper);
     if wrapping_rustc {
         wrapper.wrap_rustc(RustcWrapper::new()?)
     } else {
-        wrapper.wrap_cargo(CargoWrapper::new(own_exe)?)
+        wrapper.wrap_cargo(CargoWrapper::new(own_rustc_wrapper)?)
     }
 }
