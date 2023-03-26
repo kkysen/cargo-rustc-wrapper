@@ -56,9 +56,24 @@ impl EnvVar<PathBuf> {
 }
 
 /// Create an [`OsStr`] from bytes.
+///
+/// Where possible (i.e. `cfg(unix)`), do an `O(1)` unchecked conversion,
+/// and fallback to checked conversion through UTF-8.
 pub fn os_str_from_bytes(bytes: &[u8]) -> Result<&OsStr, Utf8Error> {
-    let it = bytes;
-    let it = std::str::from_utf8(it)?;
-    let it = OsStr::new(it);
-    Ok(it)
+    #[cfg(not(unix))]
+    fn convert(it: &[u8]) -> Result<&OsStr, Utf8Error> {
+        let it = std::str::from_utf8(it)?;
+        let it = OsStr::new(it);
+        Ok(it)
+    }
+
+    #[cfg(unix)]
+    fn convert(it: &[u8]) -> Result<&OsStr, Utf8Error> {
+        use std::os::unix::ffi::OsStrExt;
+
+        let it = OsStr::from_bytes(it);
+        Ok(it)
+    }
+
+    convert(bytes)
 }
