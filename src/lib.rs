@@ -12,10 +12,23 @@ where
     value: V,
 }
 
+impl<K, V> EnvVar<K, V>
+where
+    K: AsRef<OsStr>,
+    V: AsRef<OsStr>,
+{
+    pub fn set_on(&self, cmd: &mut Command) {
+        cmd.env(self.key.as_ref(), self.value.as_ref());
+    }
+
+    pub fn set(&self) {
+        env::set_var(self.key.as_ref(), self.value.as_ref());
+    }
+}
+
 type RustcWrapperEnvVar = EnvVar<&'static str, PathBuf>;
 type SysrootEnvVar = EnvVar<&'static str, PathBuf>;
 type ToolchainEnvVar = EnvVar<&'static str, String>;
-
 
 pub struct CargoWrapper {
     rustc_wrapper: RustcWrapperEnvVar,
