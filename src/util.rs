@@ -3,6 +3,7 @@ use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Command;
+use std::str::Utf8Error;
 
 #[derive(PartialEq, Eq)]
 pub struct EnvVar<V>
@@ -52,4 +53,12 @@ impl EnvVar<PathBuf> {
             value: PathBuf::from(value),
         })
     }
+}
+
+/// Create an [`OsStr`] from bytes.
+pub fn os_str_from_bytes(bytes: &[u8]) -> Result<&OsStr, Utf8Error> {
+    let it = bytes;
+    let it = std::str::from_utf8(it)?;
+    let it = OsStr::new(it);
+    Ok(it)
 }
