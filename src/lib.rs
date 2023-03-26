@@ -1,7 +1,10 @@
 use std::env;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::path::PathBuf;
+use std::process;
 use std::process::Command;
+use std::process::ExitStatus;
 
 struct EnvVar<K, V>
 where
@@ -29,6 +32,10 @@ where
 type RustcWrapperEnvVar = EnvVar<&'static str, PathBuf>;
 type SysrootEnvVar = EnvVar<&'static str, PathBuf>;
 type ToolchainEnvVar = EnvVar<&'static str, String>;
+
+fn exit_with_status(status: ExitStatus) {
+    process::exit(status.code().unwrap_or(1))
+}
 
 pub struct CargoWrapper {
     rustc_wrapper: RustcWrapperEnvVar,
@@ -59,7 +66,18 @@ impl CargoWrapper {
         &self,
         f: impl FnOnce(&mut Command) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
-        todo!()
+        let path: PathBuf = env::var_os("CARGO")
+            .unwrap_or_else(|| "cargo".into())
+            .into();
+        let mut cmd = Command::new(path);
+        let cmd = &mut cmd;
+        f(cmd)?;
+        let status = cmd.status()?;
+        if !status.success() {
+            eprintln!("error ({status}) running: {cmd:?}");
+            exit_with_status(status);
+        }
+        Ok(())
     }
 
     pub fn run_cargo_with_rustc_wrapper(
