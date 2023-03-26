@@ -1,12 +1,26 @@
 use std::env;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 use std::process::Command;
 
+struct EnvVar<K, V>
+where
+    K: AsRef<OsStr>,
+    V: AsRef<OsStr>,
+{
+    key: K,
+    value: V,
+}
+
+type RustcWrapperEnvVar = EnvVar<&'static str, PathBuf>;
+type SysrootEnvVar = EnvVar<&'static str, PathBuf>;
+type ToolchainEnvVar = EnvVar<&'static str, String>;
+
+
 pub struct CargoWrapper {
-    rustc_wrapper: PathBuf,
-    sysroot: PathBuf,
-    toolchain: Option<PathBuf>,
+    rustc_wrapper: RustcWrapperEnvVar,
+    sysroot: SysrootEnvVar,
+    toolchain: Option<ToolchainEnvVar>,
 }
 
 impl CargoWrapper {
@@ -20,7 +34,10 @@ impl CargoWrapper {
         let doc = rust_toolchain_toml_str.parse::<toml_edit::Document>()?;
         let channel = doc["toolchain"]["channel"].as_str();
         if let Some(toolchain) = channel {
-            self.toolchain = Some(PathBuf::from(toolchain));
+            self.toolchain = Some(ToolchainEnvVar {
+                key: "RUSTUP_TOOLCHAIN",
+                value: toolchain.to_owned(),
+            })
         }
         Ok(())
     }
