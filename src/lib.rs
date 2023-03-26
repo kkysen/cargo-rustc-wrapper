@@ -71,6 +71,9 @@ impl CargoWrapper {
             .into();
         let mut cmd = Command::new(path);
         let cmd = &mut cmd;
+        if let Some(toolchain) = &self.toolchain {
+            toolchain.set_on(cmd);
+        }
         f(cmd)?;
         let status = cmd.status()?;
         if !status.success() {
@@ -87,9 +90,6 @@ impl CargoWrapper {
         self.run_cargo(|cmd| {
             self.rustc_wrapper.set_on(cmd);
             self.sysroot.set_on(cmd);
-            if let Some(toolchain) = &self.toolchain {
-                toolchain.set_on(cmd);
-            }
             f(cmd)
         })
     }
