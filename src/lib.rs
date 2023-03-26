@@ -66,7 +66,14 @@ impl CargoWrapper {
         &self,
         f: impl FnOnce(&mut Command) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
-        todo!()
+        self.run_cargo(|cmd| {
+            self.rustc_wrapper.set_on(cmd);
+            self.sysroot.set_on(cmd);
+            if let Some(toolchain) = &self.toolchain {
+                toolchain.set_on(cmd);
+            }
+            f(cmd)
+        })
     }
 }
 
