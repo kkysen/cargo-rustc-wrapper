@@ -28,7 +28,9 @@ fn exit_with_status(status: ExitStatus) {
 }
 
 fn resolve_sysroot() -> anyhow::Result<PathBuf> {
-    let rustc = env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
+    let rustc = env::var_os("RUSTC")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "rustc".into());
     let output = Command::new(rustc)
         .args(&["--print", "sysroot"])
         .output()
@@ -116,6 +118,10 @@ impl CargoWrapper {
     }
 }
 
+fn os_string_utf8_error(s: OsString) -> anyhow::Error {
+    anyhow!("non-UTF-8 OsString: {s:?}")
+}
+
 pub struct RustcWrapper {
     args: Vec<OsString>,
     sysroot: EnvVar<PathBuf>,
@@ -148,12 +154,25 @@ impl RustcWrapper {
 
     pub fn rustc_args_os(self) -> Vec<OsString> {
         let Self { mut args, sysroot } = self;
-        args.extend(["--sysroot".into(), sysroot.value.into()]);
+        let sysroot = sysroot.value;
+        args.extend(["--sysroot".into(), sysroot.into()]);
         args
     }
 
-    pub fn rustc_args(self) -> Vec<String> {
-        todo!()
+    pub fn rustc_args(self) -> anyhow::Result<Vec<String>> {
+        let Self { args, sysroot } = self;
+        let mut args = args
+            .into_iter()
+            .map(|arg| arg.into_string())
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(os_string_utf8_error)?;
+        let sysroot = sysroot
+            .value
+            .into_os_string()
+            .into_string()
+            .map_err(os_string_utf8_error)?;
+        args.extend(["--sysroot".into(), sysroot.into()]);
+        Ok(args)
     }
 
     pub fn run_rustc(self) -> anyhow::Result<()> {

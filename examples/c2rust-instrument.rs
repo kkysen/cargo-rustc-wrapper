@@ -236,7 +236,7 @@ impl CargoRustcWrapper for InstrumentWrapper {
     fn wrap_rustc(&self, wrapper: RustcWrapper) -> anyhow::Result<()> {
         let should_instrument = wrapper.is_primary_package() && !wrapper.is_build_script()?;
         if should_instrument {
-            instrument(&wrapper.rustc_args())?;
+            instrument(&wrapper.rustc_args()?)?;
         } else {
             wrapper.run_rustc()?;
         }
