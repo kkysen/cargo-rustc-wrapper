@@ -6,11 +6,12 @@ use std::process;
 use std::process::Command;
 use std::process::ExitStatus;
 
+use anyhow::anyhow;
 use anyhow::ensure;
 use anyhow::Context;
-use util::EnvVar;
 
 use crate::util::os_str_from_bytes;
+use crate::util::EnvVar;
 
 mod util;
 
@@ -117,12 +118,16 @@ impl CargoWrapper {
 
 pub struct RustcWrapper {
     args: Vec<OsString>,
-    sysroot: PathBuf,
+    sysroot: EnvVar<PathBuf>,
 }
 
 impl RustcWrapper {
     fn new() -> anyhow::Result<Self> {
-        todo!()
+        let args = env::args_os().skip(1).collect::<Vec<_>>();
+        let sysroot = SysrootEnvVar::get_path(SYSROOT_VAR).ok_or_else(|| {
+            anyhow!("the `cargo` wrapper should've set `${SYSROOT_VAR}` for the `rustc` wrapper")
+        })?;
+        Ok(Self { args, sysroot })
     }
 
     pub fn is_primary_package(&self) -> bool {
