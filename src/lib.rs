@@ -18,6 +18,10 @@ type RustcWrapperEnvVar = EnvVar<PathBuf>;
 type SysrootEnvVar = EnvVar<PathBuf>;
 type ToolchainEnvVar = EnvVar<String>;
 
+const RUSTC_WRAPPER_VAR: &str = "RUSTC_WRAPPER";
+const SYSROOT_VAR: &str = "RUST_SYSROOT";
+const TOOLCHAIN_VAR: &str = "RUSTUP_TOOLCHAIN";
+
 fn exit_with_status(status: ExitStatus) {
     process::exit(status.code().unwrap_or(1))
 }
@@ -57,7 +61,7 @@ impl CargoWrapper {
         Ok(Self {
             rustc_wrapper,
             sysroot: SysrootEnvVar {
-                key: "RUST_SYSROOT",
+                key: SYSROOT_VAR,
                 value: resolve_sysroot()?,
             },
             toolchain: None,
@@ -71,7 +75,7 @@ impl CargoWrapper {
         let channel = doc["toolchain"]["channel"].as_str();
         if let Some(toolchain) = channel {
             self.toolchain = Some(ToolchainEnvVar {
-                key: "RUSTUP_TOOLCHAIN",
+                key: TOOLCHAIN_VAR,
                 value: toolchain.to_owned(),
             })
         }
@@ -161,7 +165,7 @@ pub trait CargoRustcWrapper {
 /// Run the current binary as either a `cargo` or `rustc` wrapper.
 pub fn wrap_cargo_or_rustc(wrapper: impl CargoRustcWrapper) -> anyhow::Result<()> {
     let own_rustc_wrapper = RustcWrapperEnvVar {
-        key: "RUSTC_WRAPPER",
+        key: RUSTC_WRAPPER_VAR,
         value: env::current_exe()?,
     };
     let current_rustc_wrapper = EnvVar::get_path(own_rustc_wrapper.key);
