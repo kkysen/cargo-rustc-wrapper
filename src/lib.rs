@@ -131,7 +131,7 @@ impl RustcWrapper {
     }
 
     pub fn is_primary_package(&self) -> bool {
-        todo!()
+        EnvVar::get_os("CARGO_PRIMARY_PACKAGE").is_some()
     }
 
     pub fn is_bin_crate(&self) -> anyhow::Result<bool> {
