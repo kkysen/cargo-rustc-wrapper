@@ -139,7 +139,7 @@ impl RustcWrapper {
     }
 
     pub fn bin_crate_name(&self) -> Option<PathBuf> {
-        todo!()
+        EnvVar::get_path("CARGO_BIN_NAME").map(|var| var.value)
     }
 
     pub fn is_build_script(&self) -> anyhow::Result<bool> {
