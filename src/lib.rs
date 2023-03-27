@@ -1,11 +1,16 @@
 use std::env;
 use std::ffi::OsString;
+use std::path::Path;
 use std::path::PathBuf;
 use std::process;
 use std::process::Command;
 use std::process::ExitStatus;
 
+use anyhow::Context;
+use anyhow::ensure;
 use util::EnvVar;
+
+use crate::util::os_str_from_bytes;
 
 mod util;
 
@@ -15,6 +20,30 @@ type ToolchainEnvVar = EnvVar<String>;
 
 fn exit_with_status(status: ExitStatus) {
     process::exit(status.code().unwrap_or(1))
+}
+
+fn resolve_sysroot() -> anyhow::Result<PathBuf> {
+    let rustc = env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
+    let output = Command::new(rustc)
+        .args(&["--print", "sysroot"])
+        .output()
+        .context("could not invoke `rustc` to find rust sysroot")?;
+    let path = output
+        .stdout
+        .as_slice()
+        // .lines() // can't use `.lines()` here since that enforces UTF-8
+        .split(|c| c.is_ascii_whitespace())
+        .next()
+        .unwrap_or_default();
+    let path = os_str_from_bytes(path)?;
+    let path = Path::new(path).to_owned();
+    // `rustc` reports a million errors if the sysroot is wrong, so try to check first.
+    ensure!(
+        path.is_dir(),
+        "invalid sysroot (not a dir): {}",
+        path.display()
+    );
+    Ok(path)
 }
 
 pub struct CargoWrapper {
@@ -27,7 +56,10 @@ impl CargoWrapper {
     fn new(rustc_wrapper: RustcWrapperEnvVar) -> anyhow::Result<Self> {
         Ok(Self {
             rustc_wrapper,
-            sysroot: todo!(),
+            sysroot: SysrootEnvVar {
+                key: "RUST_SYSROOT",
+                value: resolve_sysroot()?,
+            },
             toolchain: None,
         })
     }
