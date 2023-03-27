@@ -147,7 +147,9 @@ impl RustcWrapper {
     }
 
     pub fn rustc_args_os(self) -> Vec<OsString> {
-        todo!()
+        let Self { mut args, sysroot } = self;
+        args.extend(["--sysroot".into(), sysroot.value.into()]);
+        args
     }
 
     pub fn rustc_args(self) -> Vec<String> {
