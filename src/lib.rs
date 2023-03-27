@@ -143,7 +143,7 @@ impl RustcWrapper {
     }
 
     pub fn is_build_script(&self) -> anyhow::Result<bool> {
-        todo!()
+        Ok(self.bin_crate_name().is_none() && self.is_bin_crate()?)
     }
 
     pub fn rustc_args_os(self) -> Vec<OsString> {
