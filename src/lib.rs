@@ -204,7 +204,10 @@ impl RustcWrapper {
     }
 
     pub fn run_rustc(self) -> anyhow::Result<()> {
-        todo!()
+        WrappedCommand::rustc().run(|cmd| {
+            cmd.args(self.args);
+            Ok(())
+        })
     }
 }
 
