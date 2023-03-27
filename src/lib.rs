@@ -6,8 +6,8 @@ use std::process;
 use std::process::Command;
 use std::process::ExitStatus;
 
-use anyhow::Context;
 use anyhow::ensure;
+use anyhow::Context;
 use util::EnvVar;
 
 use crate::util::os_str_from_bytes;
@@ -137,7 +137,15 @@ impl RustcWrapper {
         todo!()
     }
 
-    pub fn run_rustc(&self) {
+    pub fn rustc_args_os(self) -> Vec<OsString> {
+        todo!()
+    }
+
+    pub fn rustc_args(self) -> Vec<String> {
+        todo!()
+    }
+
+    pub fn run_rustc(self) -> anyhow::Result<()> {
         todo!()
     }
 }

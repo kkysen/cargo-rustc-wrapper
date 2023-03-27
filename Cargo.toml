@@ -8,3 +8,8 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.70"
 toml_edit = "0.19.8"
+
+[dev-dependencies]
+clap = { version = "4.1.13", features = ["derive"] }
+fs-err = "2.9.0"
+tempfile = "3.4.0"
