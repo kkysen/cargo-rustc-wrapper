@@ -1,4 +1,5 @@
 use std::env;
+use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::path::Path;
 use std::path::PathBuf;
@@ -27,11 +28,46 @@ fn exit_with_status(status: ExitStatus) {
     process::exit(status.code().unwrap_or(1))
 }
 
+struct WrappedCommand {
+    path: PathBuf,
+}
+
+impl WrappedCommand {
+    pub fn new(program: impl Into<PathBuf>, env_var: impl AsRef<OsStr>) -> Self {
+        let path = env::var_os(env_var)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| program.into());
+        Self { path }
+    }
+
+    pub fn command(&self) -> Command {
+        Command::new(&self.path)
+    }
+
+    pub fn run(&self, f: impl FnOnce(&mut Command) -> anyhow::Result<()>) -> anyhow::Result<()> {
+        let mut cmd = self.command();
+        f(&mut cmd)?;
+        let status = cmd.status()?;
+        if !status.success() {
+            eprintln!("error ({status}) running: {cmd:?}");
+            exit_with_status(status);
+        }
+        Ok(())
+    }
+
+    pub fn cargo() -> Self {
+        Self::new("cargo", "CARGO")
+    }
+
+    pub fn rustc() -> Self {
+        Self::new("rustc", "RUSTC")
+    }
+}
+
 fn resolve_sysroot() -> anyhow::Result<PathBuf> {
-    let rustc = env::var_os("RUSTC")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| "rustc".into());
-    let output = Command::new(rustc)
+    let rustc = WrappedCommand::rustc();
+    let output = rustc
+        .command()
         .args(&["--print", "sysroot"])
         .output()
         .context("could not invoke `rustc` to find rust sysroot")?;
@@ -89,21 +125,13 @@ impl CargoWrapper {
         &self,
         f: impl FnOnce(&mut Command) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
-        let path: PathBuf = env::var_os("CARGO")
-            .unwrap_or_else(|| "cargo".into())
-            .into();
-        let mut cmd = Command::new(path);
-        let cmd = &mut cmd;
-        if let Some(toolchain) = &self.toolchain {
-            toolchain.set_on(cmd);
-        }
-        f(cmd)?;
-        let status = cmd.status()?;
-        if !status.success() {
-            eprintln!("error ({status}) running: {cmd:?}");
-            exit_with_status(status);
-        }
-        Ok(())
+        WrappedCommand::cargo().run(|cmd| {
+            if let Some(toolchain) = &self.toolchain {
+                toolchain.set_on(cmd);
+            }
+            f(cmd)?;
+            Ok(())
+        })
     }
 
     pub fn run_cargo_with_rustc_wrapper(
