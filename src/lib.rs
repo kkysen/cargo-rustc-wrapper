@@ -10,6 +10,7 @@ use std::process::ExitStatus;
 use anyhow::anyhow;
 use anyhow::ensure;
 use anyhow::Context;
+use clap::Parser;
 
 use crate::util::os_str_from_bytes;
 use crate::util::EnvVar;
@@ -89,14 +90,27 @@ fn resolve_sysroot() -> anyhow::Result<PathBuf> {
     Ok(path)
 }
 
+/// `cargo` args that we intercept.
+#[derive(Debug, Parser)]
+// #[clap(setting = AppSettings::IgnoreErrors)]
+struct InterceptedCargoArgs {
+    #[clap(long, value_parser)]
+    manifest_path: Option<PathBuf>,
+
+    /// Need this so `--` is allowed.
+    /// Not actually used.
+    _extra_args: Vec<OsString>,
+}
+
 pub struct CargoWrapper {
     rustc_wrapper: RustcWrapperEnvVar,
     sysroot: SysrootEnvVar,
     toolchain: Option<ToolchainEnvVar>,
+    cargo_args: InterceptedCargoArgs,
 }
 
 impl CargoWrapper {
-    fn new(rustc_wrapper: RustcWrapperEnvVar) -> anyhow::Result<Self> {
+    fn new(rustc_wrapper: RustcWrapperEnvVar, cargo_args: Vec<OsString>) -> anyhow::Result<Self> {
         Ok(Self {
             rustc_wrapper,
             sysroot: SysrootEnvVar {
@@ -104,7 +118,14 @@ impl CargoWrapper {
                 value: resolve_sysroot()?,
             },
             toolchain: None,
+            cargo_args: InterceptedCargoArgs::try_parse_from(
+                ["cargo".into()].into_iter().chain(cargo_args),
+            )?,
         })
+    }
+
+    pub fn manifest_path(&self) -> Option<&Path> {
+        self.cargo_args.manifest_path.as_deref()
     }
 
     /// Set `$RUSTUP_TOOLCHAIN` to the toolchain channel specified in `rust-toolchain.toml`.
@@ -211,16 +232,18 @@ impl RustcWrapper {
     }
 }
 
-pub trait CargoRustcWrapper {
+pub trait CargoRustcWrapper: Parser {
+    fn take_cargo_args(&mut self) -> Vec<OsString>;
+
     /// Run as a `cargo` wrapper/plugin, the default invocation.
-    fn wrap_cargo(&self, wrapper: CargoWrapper) -> anyhow::Result<()>;
+    fn wrap_cargo(self, wrapper: CargoWrapper) -> anyhow::Result<()>;
 
     /// Run as a `rustc` wrapper (a la `$RUSTC_WRAPPER`/[`RUSTC_WRAPPER_VAR`]).
-    fn wrap_rustc(&self, wrapper: RustcWrapper) -> anyhow::Result<()>;
+    fn wrap_rustc(wrapper: RustcWrapper) -> anyhow::Result<()>;
 }
 
 /// Run the current binary as either a `cargo` or `rustc` wrapper.
-pub fn wrap_cargo_or_rustc(wrapper: impl CargoRustcWrapper) -> anyhow::Result<()> {
+pub fn wrap_cargo_or_rustc<T: CargoRustcWrapper>() -> anyhow::Result<()> {
     let own_rustc_wrapper = RustcWrapperEnvVar {
         key: RUSTC_WRAPPER_VAR,
         value: env::current_exe()?,
@@ -229,8 +252,10 @@ pub fn wrap_cargo_or_rustc(wrapper: impl CargoRustcWrapper) -> anyhow::Result<()
 
     let wrapping_rustc = current_rustc_wrapper.as_ref() == Some(&own_rustc_wrapper);
     if wrapping_rustc {
-        wrapper.wrap_rustc(RustcWrapper::new()?)
+        T::wrap_rustc(RustcWrapper::new()?)
     } else {
-        wrapper.wrap_cargo(CargoWrapper::new(own_rustc_wrapper)?)
+        let mut args = T::try_parse()?;
+        let cargo_args = args.take_cargo_args();
+        args.wrap_cargo(CargoWrapper::new(own_rustc_wrapper, cargo_args)?)
     }
 }

@@ -4,6 +4,7 @@ use std::env;
 use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::iter;
+use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -81,7 +82,7 @@ impl MetadataFile {
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
-struct Args {
+struct Instrument {
     #[clap(long, value_parser)]
     metadata: PathBuf,
 
@@ -96,18 +97,6 @@ struct Args {
 
     /// `cargo` args.
     cargo_args: Vec<OsString>,
-}
-
-/// `cargo` args that we intercept.
-#[derive(Debug, Parser)]
-// #[clap(setting = AppSettings::IgnoreErrors)]
-struct InterceptedCargoArgs {
-    #[clap(long, value_parser)]
-    manifest_path: Option<PathBuf>,
-
-    /// Need this so `--` is allowed.
-    /// Not actually used.
-    extra_args: Vec<OsString>,
 }
 
 fn add_feature(cargo_args: &mut Vec<OsString>, features: &[&str]) {
@@ -153,34 +142,23 @@ fn env_path_from_wrapper(var: &str) -> anyhow::Result<PathBuf> {
     Ok(path.into())
 }
 
-struct InstrumentWrapper {}
-
-impl InstrumentWrapper {
-    pub fn new() -> Self {
-        Self {}
+impl CargoRustcWrapper for Instrument {
+    fn take_cargo_args(&mut self) -> Vec<OsString> {
+        mem::take(&mut self.cargo_args)
     }
-}
 
-impl CargoRustcWrapper for InstrumentWrapper {
-    fn wrap_cargo(&self, mut wrapper: CargoWrapper) -> anyhow::Result<()> {
-        let Args {
+    fn wrap_cargo(self, mut wrapper: CargoWrapper) -> anyhow::Result<()> {
+        let Self {
             metadata: metadata_path,
             runtime_path,
             set_runtime,
             rustflags,
             mut cargo_args,
-        } = Args::parse();
-
-        let args_for_cargo =
-            iter::once(OsStr::new("cargo")).chain(cargo_args.iter().map(OsString::as_os_str));
-        let InterceptedCargoArgs {
-            manifest_path,
-            extra_args: _,
-        } = InterceptedCargoArgs::parse_from(args_for_cargo);
+        } = self;
 
         wrapper.set_rustup_toolchain(include_str!("../rust-toolchain.toml"))?;
 
-        let manifest_path = manifest_path.as_deref();
+        let manifest_path = wrapper.manifest_path();
         let manifest_dir = manifest_path.and_then(|path| path.parent());
 
         if set_runtime {
@@ -233,7 +211,7 @@ impl CargoRustcWrapper for InstrumentWrapper {
         Ok(())
     }
 
-    fn wrap_rustc(&self, wrapper: RustcWrapper) -> anyhow::Result<()> {
+    fn wrap_rustc(wrapper: RustcWrapper) -> anyhow::Result<()> {
         let should_instrument = wrapper.is_primary_package() && !wrapper.is_build_script()?;
         if should_instrument {
             instrument(&wrapper.rustc_args()?)?;
@@ -248,5 +226,5 @@ impl CargoRustcWrapper for InstrumentWrapper {
 }
 
 pub fn main() -> anyhow::Result<()> {
-    wrap_cargo_or_rustc(InstrumentWrapper::new())
+    wrap_cargo_or_rustc::<Instrument>()
 }
